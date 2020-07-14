@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -27,9 +26,10 @@ func main() {
 	if err != nil {
 		log.Println("Error: Can not create new session.")
 	}
+	svc := ec2.New(sess)
 
 	// Get data from AWS service
-	result, err := ec2GetResponse(sess)
+	result, err := ec2GetResponse(svc)
 	if err != nil {
 		log.Println("Error: Can noot get data")
 		return
@@ -48,7 +48,7 @@ func main() {
 		return
 	}
 
-	ec2InstancesState, err := startEc2Instance(sess, ec2Instances)
+	ec2InstancesState, err := startEc2Instance(svc, ec2Instances)
 	if err != nil {
 		log.Println(err)
 		return
@@ -56,16 +56,13 @@ func main() {
 
 	for _, state := range ec2InstancesState {
 		for _, change := range state.StartingInstances {
-			fmt.Printf("INFO: Instance %s - started, previus state - %s", *change.InstanceId, *change.PreviousState.Name)
+			log.Printf("INFO: Instance %s - started, previus state - %s", *change.InstanceId, *change.PreviousState.Name)
 		}
 	}
 }
 
 // Func to get data from AWS EC2 service
-func ec2GetResponse(sess *session.Session) (*ec2.DescribeInstancesOutput, error) {
-
-	// New client with a session
-	ec2svc := ec2.New(sess)
+func ec2GetResponse(svc *ec2.EC2) (*ec2.DescribeInstancesOutput, error) {
 
 	// Init instance request of structure DescribeInstancesInput
 	input := &ec2.DescribeInstancesInput{
@@ -80,7 +77,7 @@ func ec2GetResponse(sess *session.Session) (*ec2.DescribeInstancesOutput, error)
 	}
 
 	// Return instance structure of DescribeInstancesOutput by Method
-	response, err := ec2svc.DescribeInstances(input)
+	response, err := svc.DescribeInstances(input)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +91,6 @@ func parseEc2Response(data *ec2.DescribeInstancesOutput) ([]*Ec2object, error) {
 
 		//  iterate []*Instance
 		for _, instance := range reservation.Instances {
-			//log.Printf("Procced number %d - instnace ID: %v\n", index + 1, *instance.InstanceId)
 
 			object := Ec2object{
 				InstanceID:     *instance.InstanceId,
@@ -110,9 +106,8 @@ func parseEc2Response(data *ec2.DescribeInstancesOutput) ([]*Ec2object, error) {
 	return Ec2objectList, nil
 }
 
-func startEc2Instance(sess *session.Session, instances []*Ec2object) (map[string]*ec2.StartInstancesOutput, error) {
+func startEc2Instance(svc *ec2.EC2, instances []*Ec2object) (map[string]*ec2.StartInstancesOutput, error) {
 	m := map[string]*ec2.StartInstancesOutput{}
-	svc := ec2.New(sess)
 
 	// Double check that instance in stopped state
 	for _, instance := range instances {
